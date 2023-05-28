@@ -2,7 +2,7 @@
   import firebase from 'firebase/compat/app';
   import axios from 'axios';
 
-  import { apiBaseUrl, otbBaseUrl } from './config';
+  import { apiBaseUrl } from './config';
 
   let enterPhone = true;
   let cleanMobile = '';
@@ -36,10 +36,21 @@
       alert('Please enter the 6-digit verification code');
       return;
     }
+    let response;
+    try {
+      response = await axios.post(apiBaseUrl + '/verify_code', {
+        mobile: officialNumber,
+        code,
+      });
+    } catch (error) {
+      console.info(error);
+      if (error?.response.status === 401) {
+        alert('Incorrect or expired code. Please try again.');
+        return;
+      }
+    }
 
-    const response = await axios.post(apiBaseUrl + '/verify_code', { mobile: officialNumber, code });
     const { token } = response.data;
-
     if (token) {
       await login(token);
     } else {
@@ -54,24 +65,26 @@
     }
 
     try {
-      await axios.post(otbBaseUrl + '/send_code', { mobile: officialNumber });
+      await axios.post(apiBaseUrl + '/send_code', { mobile: officialNumber });
       enterPhone = false;
       enterCode = true;
     } catch (error) {
       console.error(error);
-      if(error?.response?.data?.code === 'auth/user-not-found') {
-        alert('Your phone number was not recognized. Please contact management.');
+      if (error?.response?.data?.code === 'auth/user-not-found') {
+        alert(
+          'Your phone number was not recognized. Please contact management.'
+        );
 
         return;
       }
 
       alert('whoops, try again later');
     }
-
   }
 
   function logout() {
     firebase.auth().signOut();
+    enterPhone = true;
   }
   async function login(token) {
     await firebase.auth().signInWithCustomToken(token);
@@ -93,7 +106,7 @@
           <strong>{user?.displayName}</strong>
           <br />
           {user?.phoneNumber}
-          {:else}
+        {:else}
           <strong>Not Authenticated</strong>
           <br />
           Please login below
@@ -124,10 +137,7 @@
         <h4>Please enter your Verification Code</h4>
       </hgroup>
       <form on:submit|preventDefault={verifyCode}>
-        <input
-          bind:value={code}
-          type="number"
-        />
+        <input bind:value={code} type="number" />
       </form>
     {/if}
 
